@@ -25,9 +25,15 @@ User Input → [AI WAF] → AI Agent/LLM → [Output Validator] → Response
    * Catches novel attacks, social engineering, context-dependent threats
    * Hardened system prompt resistant to injection-through-analysis
 3. **Output Layer — Output Validator** (`src/analyzers/output-analyzer.ts`)
-   * Checks AI responses for system prompt leakage
+   * Checks AI responses for system prompt leakage (direct quotes, meta-disclosure)
    * Detects PII exposure (SSN, credit cards, API keys, etc.)
-   * Catches compliance breaks (AI adopting injected personas)
+   * Catches compliance breaks including:
+     - Explicit jailbreak success indicators ("HACKED!", "system override complete")
+     - AI adopting injected personas (DAN, etc.)
+     - Acknowledging restrictions then violating them
+     - Making unauthorized exceptions
+     - Unrestricted mode declarations
+   * 60+ compliance break patterns covering critical to subtle policy violations
 
 ## Quick Start
 
