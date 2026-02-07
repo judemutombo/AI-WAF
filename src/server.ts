@@ -254,7 +254,7 @@ app.get('*', (req, res) => {
 // START SERVER
 // ============================================================
 
-app.listen(PORT, () => {
+app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`
 ╔══════════════════════════════════════════════════╗
 ║          🛡️  AI WAF — Active & Ready  🛡️          ║
