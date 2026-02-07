@@ -1,4 +1,5 @@
 ./node_modules
 .env
+.env_copy
 node_modules/
 dist/
