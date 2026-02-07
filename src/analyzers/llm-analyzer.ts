@@ -107,7 +107,7 @@ export interface ProviderConfig {
  *   VERCEL_MODEL for model override (default: "openai/gpt-4o-mini")
  *
  * Per-provider model overrides (optional):
- *   ANTHROPIC_MODEL, OPENAI_MODEL, GOOGLE_MODEL, MISTRAL_MODEL, VERCEL_MODEL
+ *   
  *
  * AWS Bedrock: Uses @ai-sdk/amazon-bedrock via Vercel AI SDK.
  *   Auth: AWS IAM (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY) or
