@@ -51,33 +51,6 @@ export interface AnalysisResult {
 }
 
 /**
- * The WAF's final decision about a request.
- * This is what gets sent back to the caller.
- */
-export interface WAFDecision {
-  /** Unique ID for this request (for logging/tracking) */
-  requestId: string;
-  /** The final verdict */
-  action: 'allow' | 'flag' | 'block';
-  /** Overall threat score (0-100) */
-  overallScore: number;
-  /** Overall threat level */
-  threatLevel: ThreatLevel;
-  /** Human-readable explanation of why this decision was made */
-  explanation: string;
-  /** Results from each individual analyzer */
-  analyses: AnalysisResult[];
-  /** Total processing time (ms) */
-  totalLatency: number;
-  /** ISO timestamp */
-  timestamp: string;
-  /** The original input that was analyzed */
-  originalInput: string;
-  /** Sanitized version of the input (if applicable) */
-  sanitizedInput?: string;
-}
-
-/**
  * Incoming request to the WAF.
  * This is what developers send to our API.
  */
@@ -111,6 +84,14 @@ export interface PolicyConfig {
   blockedTopics?: string[];
   /** Maximum input length (default: 10000) */
   maxInputLength?: number;
+  /** If heuristic score < this, skip LLM (default: 15). Ignored if alwaysRunLLM=true */
+  llmSkipLow?: number;
+  /** If heuristic score >= this, skip LLM (default: 90). Ignored if alwaysRunLLM=true */
+  llmSkipHigh?: number;
+  /** Force LLM to always run when enabled, regardless of heuristic score (default: false) */
+  alwaysRunLLM?: boolean;
+  /** Enable LLM council for output validation too (default: false) */
+  outputLLMEnabled?: boolean;
 }
 
 /**
@@ -128,6 +109,39 @@ export interface OutputValidationRequest {
 }
 
 /**
+ * The WAF's final decision about a request.
+ * This is what gets sent back to the caller.
+ */
+export interface WAFDecision {
+  /** Unique ID for this request (for logging/tracking) */
+  requestId: string;
+  /** The final verdict */
+  action: 'allow' | 'flag' | 'block';
+  /** Overall threat score (0-100) */
+  overallScore: number;
+  /** Overall threat level */
+  threatLevel: ThreatLevel;
+  /** Human-readable explanation of why this decision was made */
+  explanation: string;
+  /** Results from each individual analyzer */
+  analyses: AnalysisResult[];
+  /** Total processing time (ms) */
+  totalLatency: number;
+  /** ISO timestamp */
+  timestamp: string;
+  /** The original input that was analyzed */
+  originalInput: string;
+  /** Whether this was an input scan or output validation */
+  scanType: 'input' | 'output';
+  /** Which analyzers actually ran for this decision */
+  analyzersUsed: string[];
+  /** Detailed notes about each analyzer/provider (used/discarded + reason) */
+  notes: string[];
+  /** Sanitized version of the input (if applicable) */
+  sanitizedInput?: string;
+}
+
+/**
  * A log entry for the security dashboard
  */
 export interface SecurityLog {
@@ -136,6 +150,8 @@ export interface SecurityLog {
   requestId: string;
   input: string;
   decision: WAFDecision;
+  scanType: 'input' | 'output';
+  analyzersUsed: string[];
   agentId?: string;
   sessionId?: string;
 }

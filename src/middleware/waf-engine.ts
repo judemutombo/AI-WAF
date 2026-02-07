@@ -13,7 +13,7 @@ import {
   SecurityLog,
 } from '../types';
 import { analyzeWithHeuristics } from '../analyzers/heuristic';
-import { analyzeWithLLM } from '../analyzers/llm-analyzer';
+import { analyzeWithLLMCouncil } from '../analyzers/llm-analyzer';
 import { analyzeOutput } from '../analyzers/output-analyzer';
 
 // ============================================================
@@ -26,6 +26,10 @@ const DEFAULT_POLICY: Required<PolicyConfig> = {
   customPatterns: [],
   blockedTopics: [],
   maxInputLength: 10000,
+  llmSkipLow: 15,
+  llmSkipHigh: 90,
+  alwaysRunLLM: false,
+  outputLLMEnabled: false,
 };
 
 // ============================================================
@@ -132,65 +136,112 @@ export function clearLogs() {
 export async function analyzeInput(request: WAFRequest): Promise<WAFDecision> {
   const requestId = uuidv4();
   const startTime = Date.now();
-  // Merge: globalPolicy (dashboard config) < per-request overrides
   const policy = { ...globalPolicy, ...request.policy };
+
+  const analyzersUsed: string[] = [];
+  const notes: string[] = [];
 
   // Quick length check
   if (request.input.length > policy.maxInputLength) {
     const decision: WAFDecision = {
-      requestId,
-      action: 'block',
-      overallScore: 100,
-      threatLevel: 'critical',
+      requestId, action: 'block', overallScore: 100, threatLevel: 'critical',
       explanation: `Input exceeds maximum length (${request.input.length} > ${policy.maxInputLength} chars). This may be a context overflow attack.`,
-      analyses: [],
-      totalLatency: Date.now() - startTime,
+      analyses: [], totalLatency: Date.now() - startTime,
       timestamp: new Date().toISOString(),
       originalInput: request.input.substring(0, 500) + '... [truncated]',
+      scanType: 'input', analyzersUsed: ['length_check'],
+      notes: ['Input auto-blocked: length exceeded'],
     };
     logDecision(decision, request);
     return decision;
   }
 
-  // Run analyzers
   const analyses: AnalysisResult[] = [];
 
-  // 0. CUSTOM PATTERN CHECK (from dashboard config)
+  // 0. CUSTOM PATTERNS
   if (policy.customPatterns.length > 0) {
     const customResult = checkCustomPatterns(request.input, policy.customPatterns);
     if (customResult.score > 0) {
       analyses.push(customResult);
+      analyzersUsed.push('custom_patterns');
+      notes.push('custom patterns used');
     }
   }
 
-  // 0b. BLOCKED TOPICS CHECK (from dashboard config)
+  // 0b. BLOCKED TOPICS
   if (policy.blockedTopics.length > 0) {
     const topicResult = checkBlockedTopics(request.input, policy.blockedTopics);
     if (topicResult.score > 0) {
       analyses.push(topicResult);
+      analyzersUsed.push('blocked_topics');
+      notes.push('blocked topics matched');
     }
   }
 
-  // 1. HEURISTIC ANALYSIS (runs if enabled — it's fast)
+  // 1. HEURISTIC ANALYSIS
   if (policy.enabledAnalyzers.includes('heuristic')) {
     const heuristicResult = analyzeWithHeuristics(request.input);
     analyses.push(heuristicResult);
+    analyzersUsed.push('heuristic');
+    notes.push(`heuristic used (score: ${heuristicResult.score})`);
   }
 
-  // 2. LLM ANALYSIS (runs if enabled and heuristic score warrants deeper inspection)
-  // Optimization: Skip LLM if heuristic says it's clearly safe OR clearly malicious
-  const topHeuristicScore = Math.max(0, ...analyses.map(a => a.score));
-  if (
-    policy.enabledAnalyzers.includes('llm_intent') &&
-    topHeuristicScore >= 15 && // Don't waste LLM calls on clearly safe inputs
-    topHeuristicScore < 90     // Don't waste time if heuristic is already certain
-  ) {
-    const llmResult = await analyzeWithLLM(request.input, request.systemPrompt);
-    analyses.push(llmResult);
-  }
+  // 2. LLM COUNCIL ANALYSIS
+  if (policy.enabledAnalyzers.includes('llm_intent')) {
+    const topHeuristicScore = Math.max(0, ...analyses.map(a => a.score));
+    const shouldRunLLM = policy.alwaysRunLLM || (
+      topHeuristicScore >= policy.llmSkipLow &&
+      topHeuristicScore < policy.llmSkipHigh
+    );
 
+    if (shouldRunLLM) {
+      const council = await analyzeWithLLMCouncil(
+        request.input,
+        request.systemPrompt,
+        policy.blockThreshold,
+        policy.flagThreshold
+      );
+
+      // Check if the entire council failed (all providers errored out)
+      const councilTotallyFailed = council.activeProviders.length === 0 && council.discardedProviders.length > 0;
+
+      if (councilTotallyFailed) {
+        // Council failed — mark it
+        analyzersUsed.push('llm_council(failed)');
+        notes.push(...council.providerNotes);
+        notes.push('⚠ LLM council FAILED: all providers unavailable');
+
+        for (const p of council.discardedProviders) {
+          analyzersUsed.push(`llm:${p}(failed)`);
+        }
+
+        // FALLBACK: force heuristic as last resort if it wasn't already run
+        if (!policy.enabledAnalyzers.includes('heuristic')) {
+          const fallbackResult = analyzeWithHeuristics(request.input);
+          analyses.push(fallbackResult);
+          analyzersUsed.push('heuristic(fallback)');
+          notes.push(`heuristic used as FALLBACK (score: ${fallbackResult.score}) — forced because all LLM providers failed`);
+        }
+      } else {
+        // Council succeeded (at least one provider worked)
+        analyses.push(council.result);
+        analyzersUsed.push('llm_council');
+        notes.push(...council.providerNotes);
+
+        for (const p of council.activeProviders) {
+          analyzersUsed.push(`llm:${p}`);
+        }
+        for (const p of council.discardedProviders) {
+          analyzersUsed.push(`llm:${p}(failed)`);
+        }
+      }
+    } else {
+      analyzersUsed.push('llm_council(skipped)');
+      notes.push(`LLM council skipped (heuristic score ${topHeuristicScore} outside range ${policy.llmSkipLow}-${policy.llmSkipHigh})`);
+    }
+  }
+  
   // 3. COMBINE SCORES
-  // Weighted combination: heuristic and LLM each contribute based on confidence
   const combinedScore = calculateCombinedScore(analyses);
 
   // 4. MAKE DECISION
@@ -203,27 +254,19 @@ export async function analyzeInput(request: WAFRequest): Promise<WAFDecision> {
     combinedScore >= 80 ? 'critical' :
     combinedScore >= 60 ? 'high' :
     combinedScore >= 40 ? 'medium' :
-    combinedScore >= 20 ? 'low' :
-    'none';
+    combinedScore >= 20 ? 'low' : 'none';
 
-  // 5. GENERATE EXPLANATION
   const explanation = generateExplanation(action, analyses, combinedScore);
 
   const decision: WAFDecision = {
-    requestId,
-    action,
-    overallScore: combinedScore,
-    threatLevel,
-    explanation,
-    analyses,
-    totalLatency: Date.now() - startTime,
+    requestId, action, overallScore: combinedScore, threatLevel, explanation,
+    analyses, totalLatency: Date.now() - startTime,
     timestamp: new Date().toISOString(),
-    originalInput: request.input,
+    originalInput: request.input, scanType: 'input',
+    analyzersUsed, notes,
   };
 
-  // Log for dashboard
   logDecision(decision, request);
-
   return decision;
 }
 
@@ -233,29 +276,78 @@ export async function analyzeInput(request: WAFRequest): Promise<WAFDecision> {
 export async function analyzeOutputSafety(
   output: string,
   originalInput: string,
-  systemPrompt?: string
+  systemPrompt?: string,
+  agentId?: string
 ): Promise<WAFDecision> {
   const requestId = uuidv4();
   const startTime = Date.now();
+  const policy = { ...globalPolicy };
 
+  const analyses: AnalysisResult[] = [];
+  const analyzersUsed: string[] = ['output_validator'];
+  const notes: string[] = ['output validator used'];
+
+  // 1. Standard output analysis (heuristic-based)
   const result = analyzeOutput(output, originalInput, systemPrompt);
+  analyses.push(result);
+
+  // 2. LLM council for output (if enabled)
+  if (policy.outputLLMEnabled && policy.enabledAnalyzers.includes('llm_intent')) {
+    const council = await analyzeWithLLMCouncil(
+      `[OUTPUT VALIDATION] The following is an AI agent's response to validate for safety:\n\n${output}`,
+      systemPrompt,
+      policy.blockThreshold,
+      policy.flagThreshold
+    );
+
+    const councilTotallyFailed = council.activeProviders.length === 0 && council.discardedProviders.length > 0;
+
+    if (councilTotallyFailed) {
+      analyzersUsed.push('llm_council(failed)');
+      notes.push(...council.providerNotes);
+      notes.push('⚠ LLM council FAILED for output: all providers unavailable — relying on output validator only');
+      for (const p of council.discardedProviders) analyzersUsed.push(`llm:${p}(failed)`);
+    } else {
+      analyses.push(council.result);
+      analyzersUsed.push('llm_council');
+      notes.push(...council.providerNotes);
+      for (const p of council.activeProviders) analyzersUsed.push(`llm:${p}`);
+      for (const p of council.discardedProviders) analyzersUsed.push(`llm:${p}(failed)`);
+    }
+  }
+
+  // Combine scores
+  const combinedScore = analyses.length > 1
+    ? calculateCombinedScore(analyses)
+    : result.score;
 
   const action =
-    result.score >= 70 ? 'block' :
-    result.score >= 40 ? 'flag' :
+    combinedScore >= policy.blockThreshold ? 'block' :
+    combinedScore >= policy.flagThreshold ? 'flag' :
     'allow';
 
-  return {
-    requestId,
-    action,
-    overallScore: result.score,
-    threatLevel: result.threatLevel,
-    explanation: result.explanation,
-    analyses: [result],
-    totalLatency: Date.now() - startTime,
+  const threatLevel: ThreatLevel =
+    combinedScore >= 80 ? 'critical' : combinedScore >= 60 ? 'high' :
+    combinedScore >= 40 ? 'medium' : combinedScore >= 20 ? 'low' : 'none';
+
+  const decision: WAFDecision = {
+    requestId, action, overallScore: combinedScore,
+    threatLevel, explanation: result.explanation,
+    analyses, totalLatency: Date.now() - startTime,
     timestamp: new Date().toISOString(),
-    originalInput: output,
+    originalInput: output, scanType: 'output',
+    analyzersUsed, notes,
   };
+
+  const log: SecurityLog = {
+    id: decision.requestId, timestamp: decision.timestamp,
+    requestId: decision.requestId, input: output.substring(0, 500),
+    decision, scanType: 'output', analyzersUsed, agentId,
+  };
+  securityLogs.push(log);
+  if (securityLogs.length > MAX_LOGS) securityLogs.splice(0, securityLogs.length - MAX_LOGS);
+
+  return decision;
 }
 
 // ============================================================
@@ -330,10 +422,12 @@ function calculateCombinedScore(analyses: AnalysisResult[]): number {
 
   // Weight by analyzer type
   const weights: Record<string, number> = {
-    heuristic: 0.4,        // Pattern matching is reliable but limited
-    llm_intent: 0.6,       // LLM analysis is more nuanced
-    custom_patterns: 0.5,  // User-defined patterns — moderately weighted
-    blocked_topics: 0.7,   // Explicitly blocked topics — high weight
+    heuristic: 0.4,
+    llm_intent: 0.6,
+    llm_council: 0.6,     // Council has same weight as single LLM
+    custom_patterns: 0.5,
+    blocked_topics: 0.7,
+    output_validator: 0.5,
   };
 
   let weightedSum = 0;
@@ -410,15 +504,15 @@ function logDecision(decision: WAFDecision, request: WAFRequest) {
     id: decision.requestId,
     timestamp: decision.timestamp,
     requestId: decision.requestId,
-    input: request.input.substring(0, 500), // Truncate for storage
+    input: request.input.substring(0, 500),
     decision,
+    scanType: decision.scanType,
+    analyzersUsed: decision.analyzersUsed,
     agentId: request.agentId,
     sessionId: request.sessionId,
   };
 
   securityLogs.push(log);
-
-  // Keep log size bounded
   if (securityLogs.length > MAX_LOGS) {
     securityLogs.splice(0, securityLogs.length - MAX_LOGS);
   }

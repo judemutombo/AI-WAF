@@ -18,7 +18,9 @@ import {
   updateGlobalPolicy,
   resetGlobalPolicy,
 } from './middleware/waf-engine';
-
+import { getProviderConfigs } from './analyzers/llm-analyzer';
+import dotenv from "dotenv"
+dotenv.config()
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -96,7 +98,8 @@ app.post('/api/waf/validate-output', async (req, res) => {
     const decision = await analyzeOutputSafety(
       request.output,
       request.originalInput || '',
-      request.systemPrompt
+      request.systemPrompt,
+      request.agentId
     );
 
     const statusCode = decision.action === 'block' ? 403 : 200;
@@ -179,6 +182,18 @@ app.put('/api/waf/config', (req, res) => {
     if (patch.blockedTopics !== undefined && !Array.isArray(patch.blockedTopics)) {
       return res.status(400).json({ error: 'blockedTopics must be an array of strings' });
     }
+    if (patch.llmSkipLow !== undefined) {
+      patch.llmSkipLow = Math.max(0, Math.min(100, Number(patch.llmSkipLow)));
+    }
+    if (patch.llmSkipHigh !== undefined) {
+      patch.llmSkipHigh = Math.max(0, Math.min(100, Number(patch.llmSkipHigh)));
+    }
+    if (patch.alwaysRunLLM !== undefined) {
+      patch.alwaysRunLLM = Boolean(patch.alwaysRunLLM);
+    }
+    if (patch.outputLLMEnabled !== undefined) {
+      patch.outputLLMEnabled = Boolean(patch.outputLLMEnabled);
+    }
 
     const updated = updateGlobalPolicy(patch);
     res.json({ success: true, config: updated });
@@ -194,6 +209,25 @@ app.put('/api/waf/config', (req, res) => {
 app.post('/api/waf/config/reset', (req, res) => {
   const config = resetGlobalPolicy();
   res.json({ success: true, config });
+});
+
+/**
+ * GET /api/waf/providers
+ * Show configured LLM providers and their status.
+ */
+app.get('/api/waf/providers', (req, res) => {
+  const configs = getProviderConfigs();
+  const providers = configs.map(c => ({
+    name: c.name,
+    hasKey: c.name === 'bedrock' ? true : !!c.apiKey,
+    model: c.model || '(default)',
+  }));
+  res.json({
+    providers,
+    total: configs.length,
+    envLLMProviders: process.env.LLM_PROVIDERS || 'vercel',
+    envLLMProvidersCount: process.env.LLM_PROVIDERS_COUNT || String(configs.length),
+  });
 });
 
 /**
