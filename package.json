@@ -9,6 +9,7 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
+    "@ai-sdk/amazon-bedrock": "^4.0.51",
     "@aws-sdk/client-bedrock-runtime": "^3.490.0",
     "ai": "^6.0.77",
     "cors": "^2.8.5",

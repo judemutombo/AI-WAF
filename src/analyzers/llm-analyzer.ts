@@ -257,7 +257,7 @@ async function callBedrockAnalyzer(input: string, config: ProviderConfig, system
   const { generateText } = await import('ai');
 
   const bedrock = createAmazonBedrock({
-    region: process.env.AWS_REGION || 'us-east-1',
+    region: process.env.AWS_REGION || 'us-west-2',
   });
 
   const modelId = config.model || process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-haiku-20240307-v1:0';
@@ -266,7 +266,6 @@ async function callBedrockAnalyzer(input: string, config: ProviderConfig, system
     model: bedrock(modelId),
     system: ANALYZER_SYSTEM_PROMPT,
     prompt: buildAnalysisPrompt(input, systemPrompt),
-    maxTokens: 512,
     temperature: 0,
   });
 
