@@ -475,11 +475,317 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ====== CONFIG PANEL ====== */
+    .config-panel {
+      overflow: hidden;
+      transition: max-height 0.4s ease, opacity 0.3s ease;
+      max-height: 0;
+      opacity: 0;
+    }
+
+    .config-panel.open {
+      max-height: 1200px;
+      opacity: 1;
+    }
+
+    .config-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .config-toggle .chevron {
+      transition: transform 0.3s ease;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .config-toggle.open .chevron { transform: rotate(180deg); }
+
+    .config-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 16px;
+    }
+
+    .config-section {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+    }
+
+    .config-section h4 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 14px;
+    }
+
+    .config-field {
+      margin-bottom: 16px;
+    }
+
+    .config-field:last-child { margin-bottom: 0; }
+
+    .config-field label {
+      display: block;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .config-field .hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Range slider */
+    .range-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .range-group input[type="range"] {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: var(--bg-secondary);
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .range-group input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      cursor: pointer;
+      border: 2px solid var(--bg-primary);
+      box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+    }
+
+    .range-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      min-width: 36px;
+      text-align: right;
+    }
+
+    /* Number input */
+    .config-number {
+      width: 120px;
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+    }
+
+    .config-number:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    /* Toggle switch */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+    }
+
+    .toggle-row + .toggle-row {
+      border-top: 1px solid rgba(30, 45, 68, 0.5);
+    }
+
+    .toggle-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      cursor: pointer;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-track {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      transition: background 0.3s, border-color 0.3s;
+    }
+
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      transition: transform 0.3s, background 0.3s;
+    }
+
+    .toggle-switch input:checked + .toggle-track {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: var(--accent-blue);
+    }
+
+    .toggle-switch input:checked + .toggle-track::after {
+      transform: translateX(20px);
+      background: var(--accent-blue);
+    }
+
+    /* Tag input (for custom patterns and blocked topics) */
+    .tag-input-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      min-height: 40px;
+      cursor: text;
+    }
+
+    .tag-input-container:focus-within {
+      border-color: var(--accent-blue);
+    }
+
+    .tag-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--accent-blue);
+    }
+
+    .tag-item.topic {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: var(--accent-red);
+    }
+
+    .tag-remove {
+      cursor: pointer;
+      opacity: 0.6;
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .tag-remove:hover { opacity: 1; }
+
+    .tag-input {
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      outline: none;
+      flex: 1;
+      min-width: 120px;
+    }
+
+    .tag-input::placeholder { color: var(--text-muted); }
+
+    /* Config action buttons */
+    .config-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: flex-end;
+    }
+
+    .btn-save {
+      background: linear-gradient(135deg, var(--accent-green), #059669);
+      color: white;
+    }
+
+    .btn-save:hover {
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-reset {
+      background: var(--bg-input);
+      color: var(--accent-yellow);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .btn-reset:hover {
+      border-color: var(--accent-yellow);
+    }
+
+    /* Toast notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 1000;
+      transform: translateY(20px);
+      opacity: 0;
+      transition: all 0.3s ease;
+      pointer-events: none;
+    }
+
+    .toast.visible {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast.success {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: var(--accent-green);
+    }
+
+    .toast.error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: var(--accent-red);
+    }
+
     /* ====== RESPONSIVE ====== */
     @media (max-width: 1024px) {
       .main { grid-template-columns: 1fr; padding: 16px; }
       .stats-row { grid-template-columns: repeat(3, 1fr); }
       .result-details { grid-template-columns: 1fr; }
+      .config-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 640px) {
@@ -525,6 +831,101 @@
       <div class="stat-card latency">
         <div class="stat-value" id="stat-latency">0<span style="font-size:16px">ms</span></div>
         <div class="stat-label">Avg Latency</div>
+      </div>
+    </div>
+
+    <!-- CONFIG PANEL -->
+    <div class="card full-width">
+      <div class="card-header">
+        <div class="config-toggle" id="config-toggle" onclick="toggleConfig()">
+          <div class="card-title">⚙️ WAF Configuration</div>
+          <span class="chevron">▼</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span id="config-status" style="font-size:12px;color:var(--text-muted);"></span>
+        </div>
+      </div>
+
+      <div class="config-panel" id="config-panel">
+        <div class="config-grid">
+          <!-- Left column: Thresholds & Limits -->
+          <div class="config-section">
+            <h4>Thresholds & Limits</h4>
+
+            <div class="config-field">
+              <label>Block Threshold <span style="color:var(--accent-red);">●</span></label>
+              <div class="range-group">
+                <input type="range" id="cfg-block-threshold" min="0" max="100" value="70"
+                       oninput="document.getElementById('cfg-block-value').textContent=this.value">
+                <span class="range-value" id="cfg-block-value">70</span>
+              </div>
+              <div class="hint">Score ≥ this value → request is BLOCKED</div>
+            </div>
+
+            <div class="config-field">
+              <label>Flag Threshold <span style="color:var(--accent-yellow);">●</span></label>
+              <div class="range-group">
+                <input type="range" id="cfg-flag-threshold" min="0" max="100" value="40"
+                       oninput="document.getElementById('cfg-flag-value').textContent=this.value">
+                <span class="range-value" id="cfg-flag-value">40</span>
+              </div>
+              <div class="hint">Score ≥ this value → request is FLAGGED (but allowed)</div>
+            </div>
+
+            <div class="config-field">
+              <label>Max Input Length</label>
+              <input type="number" class="config-number" id="cfg-max-length" value="10000" min="100" max="100000" step="500">
+              <div class="hint">Inputs longer than this are auto-blocked (context overflow protection)</div>
+            </div>
+          </div>
+
+          <!-- Right column: Analyzers -->
+          <div class="config-section">
+            <h4>Active Analyzers</h4>
+
+            <div class="toggle-row">
+              <span class="toggle-label">Heuristic Pattern Detector</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="cfg-analyzer-heuristic" checked>
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+            <div class="toggle-row">
+              <span class="toggle-label">LLM Intent Analyzer</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="cfg-analyzer-llm" checked>
+                <span class="toggle-track"></span>
+              </label>
+            </div>
+
+            <div style="margin-top:16px;">
+              <h4>Blocked Topics</h4>
+              <div class="tag-input-container" onclick="this.querySelector('input').focus()">
+                <div id="blocked-topics-tags"></div>
+                <input type="text" class="tag-input" id="blocked-topics-input"
+                       placeholder="Type a topic and press Enter..."
+                       onkeydown="handleTagKeydown(event, 'blocked-topics')">
+              </div>
+              <div class="hint">Inputs mentioning these topics will be flagged/blocked</div>
+            </div>
+
+            <div style="margin-top:16px;">
+              <h4>Custom Regex Patterns</h4>
+              <div class="tag-input-container" onclick="this.querySelector('input').focus()">
+                <div id="custom-patterns-tags"></div>
+                <input type="text" class="tag-input" id="custom-patterns-input"
+                       placeholder="Type a regex and press Enter..."
+                       onkeydown="handleTagKeydown(event, 'custom-patterns')">
+              </div>
+              <div class="hint">Additional regex patterns to match against inputs (case-insensitive)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="config-actions">
+          <button class="btn btn-reset" onclick="resetConfig()">↺ Reset to Defaults</button>
+          <button class="btn btn-save" onclick="saveConfig()">💾 Save Configuration</button>
+        </div>
       </div>
     </div>
 
@@ -864,6 +1265,187 @@
   }
 
   // ============================================================
+  // CONFIGURATION PANEL
+  // ============================================================
+
+  // State for tag inputs
+  const tagState = {
+    'blocked-topics': [],
+    'custom-patterns': [],
+  };
+
+  function toggleConfig() {
+    const panel = document.getElementById('config-panel');
+    const toggle = document.getElementById('config-toggle');
+    panel.classList.toggle('open');
+    toggle.classList.toggle('open');
+  }
+
+  /** Load current config from the server and populate the UI */
+  async function loadConfig() {
+    try {
+      const res = await fetch('/api/waf/config');
+      const config = await res.json();
+
+      // Thresholds
+      document.getElementById('cfg-block-threshold').value = config.blockThreshold;
+      document.getElementById('cfg-block-value').textContent = config.blockThreshold;
+      document.getElementById('cfg-flag-threshold').value = config.flagThreshold;
+      document.getElementById('cfg-flag-value').textContent = config.flagThreshold;
+      document.getElementById('cfg-max-length').value = config.maxInputLength;
+
+      // Analyzers
+      document.getElementById('cfg-analyzer-heuristic').checked =
+        config.enabledAnalyzers.includes('heuristic');
+      document.getElementById('cfg-analyzer-llm').checked =
+        config.enabledAnalyzers.includes('llm_intent');
+
+      // Tags
+      tagState['blocked-topics'] = config.blockedTopics || [];
+      tagState['custom-patterns'] = config.customPatterns || [];
+      renderTags('blocked-topics');
+      renderTags('custom-patterns');
+
+      document.getElementById('config-status').textContent = 'Loaded';
+      setTimeout(() => {
+        document.getElementById('config-status').textContent = '';
+      }, 2000);
+    } catch (e) {
+      console.error('Failed to load config:', e);
+    }
+  }
+
+  /** Save current UI state to the server */
+  async function saveConfig() {
+    const enabledAnalyzers = [];
+    if (document.getElementById('cfg-analyzer-heuristic').checked) enabledAnalyzers.push('heuristic');
+    if (document.getElementById('cfg-analyzer-llm').checked) enabledAnalyzers.push('llm_intent');
+
+    const config = {
+      blockThreshold: parseInt(document.getElementById('cfg-block-threshold').value),
+      flagThreshold: parseInt(document.getElementById('cfg-flag-threshold').value),
+      maxInputLength: parseInt(document.getElementById('cfg-max-length').value),
+      enabledAnalyzers,
+      blockedTopics: tagState['blocked-topics'],
+      customPatterns: tagState['custom-patterns'],
+    };
+
+    // Validate: block threshold should be > flag threshold
+    if (config.blockThreshold <= config.flagThreshold) {
+      showToast('Block threshold must be higher than flag threshold', 'error');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/waf/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        showToast('Configuration saved successfully', 'success');
+      } else {
+        showToast('Failed to save: ' + (result.error || 'Unknown error'), 'error');
+      }
+    } catch (e) {
+      showToast('Failed to save configuration', 'error');
+    }
+  }
+
+  /** Reset to defaults */
+  async function resetConfig() {
+    try {
+      const res = await fetch('/api/waf/config/reset', { method: 'POST' });
+      const result = await res.json();
+      if (result.success) {
+        await loadConfig();
+        showToast('Configuration reset to defaults', 'success');
+      }
+    } catch (e) {
+      showToast('Failed to reset configuration', 'error');
+    }
+  }
+
+  // ============================================================
+  // TAG INPUT HANDLING
+  // ============================================================
+
+  function handleTagKeydown(e, type) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const input = e.target;
+      const value = input.value.trim();
+      if (!value) return;
+
+      // For custom patterns, validate regex
+      if (type === 'custom-patterns') {
+        try {
+          new RegExp(value);
+        } catch {
+          showToast('Invalid regex pattern: ' + value, 'error');
+          return;
+        }
+      }
+
+      if (!tagState[type].includes(value)) {
+        tagState[type].push(value);
+        renderTags(type);
+      }
+      input.value = '';
+    }
+
+    // Backspace on empty input removes last tag
+    if (e.key === 'Backspace' && e.target.value === '' && tagState[type].length > 0) {
+      tagState[type].pop();
+      renderTags(type);
+    }
+  }
+
+  function removeTag(type, index) {
+    tagState[type].splice(index, 1);
+    renderTags(type);
+  }
+
+  function renderTags(type) {
+    const container = document.getElementById(type + '-tags');
+    const isTopics = type === 'blocked-topics';
+
+    container.innerHTML = tagState[type].map((tag, i) => `
+      <span class="tag-item ${isTopics ? 'topic' : ''}">
+        ${escapeHtml(tag)}
+        <span class="tag-remove" onclick="removeTag('${type}', ${i})">×</span>
+      </span>
+    `).join('');
+  }
+
+  // ============================================================
+  // TOAST NOTIFICATIONS
+  // ============================================================
+
+  function showToast(message, type = 'success') {
+    // Remove existing toast if any
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // Trigger animation
+    requestAnimationFrame(() => {
+      toast.classList.add('visible');
+    });
+
+    setTimeout(() => {
+      toast.classList.remove('visible');
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }
+
+  // ============================================================
   // KEYBOARD SHORTCUTS
   // ============================================================
 
@@ -877,6 +1459,7 @@
   // Initial load
   refreshStats();
   refreshLogs();
+  loadConfig();
 </script>
 </body>
 </html>

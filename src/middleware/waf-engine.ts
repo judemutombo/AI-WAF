@@ -17,7 +17,7 @@ import { analyzeWithLLM } from '../analyzers/llm-analyzer';
 import { analyzeOutput } from '../analyzers/output-analyzer';
 
 // ============================================================
-// Default policy — can be overridden per-request
+// Default policy — the baseline config
 // ============================================================
 const DEFAULT_POLICY: Required<PolicyConfig> = {
   flagThreshold: 40,
@@ -27,6 +27,44 @@ const DEFAULT_POLICY: Required<PolicyConfig> = {
   blockedTopics: [],
   maxInputLength: 10000,
 };
+
+// ============================================================
+// Global runtime config — starts as a copy of defaults.
+// The dashboard can modify this at runtime via the API.
+// Per-request overrides still take priority over this.
+// ============================================================
+let globalPolicy: Required<PolicyConfig> = { ...DEFAULT_POLICY };
+
+/**
+ * Get the current active policy (for the dashboard to display)
+ */
+export function getGlobalPolicy(): Required<PolicyConfig> {
+  return { ...globalPolicy };
+}
+
+/**
+ * Update the global policy from the dashboard.
+ * Only provided fields are updated — everything else stays.
+ */
+export function updateGlobalPolicy(patch: Partial<PolicyConfig>): Required<PolicyConfig> {
+  globalPolicy = {
+    ...globalPolicy,
+    ...patch,
+    // Ensure arrays are replaced, not merged
+    enabledAnalyzers: patch.enabledAnalyzers ?? globalPolicy.enabledAnalyzers,
+    customPatterns: patch.customPatterns ?? globalPolicy.customPatterns,
+    blockedTopics: patch.blockedTopics ?? globalPolicy.blockedTopics,
+  };
+  return { ...globalPolicy };
+}
+
+/**
+ * Reset global policy back to defaults
+ */
+export function resetGlobalPolicy(): Required<PolicyConfig> {
+  globalPolicy = { ...DEFAULT_POLICY };
+  return { ...globalPolicy };
+}
 
 // ============================================================
 // In-memory security log (in production, use a database)
@@ -94,7 +132,8 @@ export function clearLogs() {
 export async function analyzeInput(request: WAFRequest): Promise<WAFDecision> {
   const requestId = uuidv4();
   const startTime = Date.now();
-  const policy = { ...DEFAULT_POLICY, ...request.policy };
+  // Merge: globalPolicy (dashboard config) < per-request overrides
+  const policy = { ...globalPolicy, ...request.policy };
 
   // Quick length check
   if (request.input.length > policy.maxInputLength) {
@@ -116,16 +155,35 @@ export async function analyzeInput(request: WAFRequest): Promise<WAFDecision> {
   // Run analyzers
   const analyses: AnalysisResult[] = [];
 
-  // 1. HEURISTIC ANALYSIS (always runs — it's fast)
-  const heuristicResult = analyzeWithHeuristics(request.input);
-  analyses.push(heuristicResult);
+  // 0. CUSTOM PATTERN CHECK (from dashboard config)
+  if (policy.customPatterns.length > 0) {
+    const customResult = checkCustomPatterns(request.input, policy.customPatterns);
+    if (customResult.score > 0) {
+      analyses.push(customResult);
+    }
+  }
+
+  // 0b. BLOCKED TOPICS CHECK (from dashboard config)
+  if (policy.blockedTopics.length > 0) {
+    const topicResult = checkBlockedTopics(request.input, policy.blockedTopics);
+    if (topicResult.score > 0) {
+      analyses.push(topicResult);
+    }
+  }
+
+  // 1. HEURISTIC ANALYSIS (runs if enabled — it's fast)
+  if (policy.enabledAnalyzers.includes('heuristic')) {
+    const heuristicResult = analyzeWithHeuristics(request.input);
+    analyses.push(heuristicResult);
+  }
 
   // 2. LLM ANALYSIS (runs if enabled and heuristic score warrants deeper inspection)
   // Optimization: Skip LLM if heuristic says it's clearly safe OR clearly malicious
+  const topHeuristicScore = Math.max(0, ...analyses.map(a => a.score));
   if (
     policy.enabledAnalyzers.includes('llm_intent') &&
-    heuristicResult.score >= 15 && // Don't waste LLM calls on clearly safe inputs
-    heuristicResult.score < 90     // Don't waste time if heuristic is already certain
+    topHeuristicScore >= 15 && // Don't waste LLM calls on clearly safe inputs
+    topHeuristicScore < 90     // Don't waste time if heuristic is already certain
   ) {
     const llmResult = await analyzeWithLLM(request.input, request.systemPrompt);
     analyses.push(llmResult);
@@ -205,6 +263,64 @@ export async function analyzeOutputSafety(
 // ============================================================
 
 /**
+ * Check input against user-defined custom regex patterns from the dashboard.
+ * These are additional patterns the security team adds for their specific use case.
+ */
+function checkCustomPatterns(input: string, patterns: string[]): AnalysisResult {
+  const startTime = Date.now();
+  const matched: string[] = [];
+
+  for (const patternStr of patterns) {
+    try {
+      const regex = new RegExp(patternStr, 'i');
+      if (regex.test(input)) {
+        matched.push(patternStr);
+      }
+    } catch {
+      // Skip invalid regex silently
+    }
+  }
+
+  const score = matched.length > 0 ? Math.min(100, 50 + matched.length * 15) : 0;
+
+  return {
+    analyzer: 'custom_patterns',
+    score,
+    explanation: matched.length > 0
+      ? `Matched ${matched.length} custom pattern(s): ${matched.map(p => `/${p}/`).join(', ')}`
+      : 'No custom patterns matched',
+    attackType: matched.length > 0 ? 'prompt_injection' : 'none',
+    threatLevel: score >= 80 ? 'critical' : score >= 60 ? 'high' : score >= 40 ? 'medium' : 'none',
+    latency: Date.now() - startTime,
+    metadata: { matchedPatterns: matched },
+  };
+}
+
+/**
+ * Check if input mentions any blocked topics configured in the dashboard.
+ * Simple case-insensitive substring matching.
+ */
+function checkBlockedTopics(input: string, topics: string[]): AnalysisResult {
+  const startTime = Date.now();
+  const lowerInput = input.toLowerCase();
+  const matched = topics.filter(topic => lowerInput.includes(topic.toLowerCase()));
+
+  const score = matched.length > 0 ? Math.min(100, 60 + matched.length * 10) : 0;
+
+  return {
+    analyzer: 'blocked_topics',
+    score,
+    explanation: matched.length > 0
+      ? `Input contains blocked topic(s): ${matched.join(', ')}`
+      : 'No blocked topics found',
+    attackType: matched.length > 0 ? 'prompt_injection' : 'none',
+    threatLevel: score >= 80 ? 'critical' : score >= 60 ? 'high' : score >= 40 ? 'medium' : 'none',
+    latency: Date.now() - startTime,
+    metadata: { matchedTopics: matched },
+  };
+}
+
+/**
  * Calculate combined score from multiple analyzers.
  * Uses weighted averaging with confidence-based weighting.
  */
@@ -214,8 +330,10 @@ function calculateCombinedScore(analyses: AnalysisResult[]): number {
 
   // Weight by analyzer type
   const weights: Record<string, number> = {
-    heuristic: 0.4,   // Pattern matching is reliable but limited
-    llm_intent: 0.6,  // LLM analysis is more nuanced
+    heuristic: 0.4,        // Pattern matching is reliable but limited
+    llm_intent: 0.6,       // LLM analysis is more nuanced
+    custom_patterns: 0.5,  // User-defined patterns — moderately weighted
+    blocked_topics: 0.7,   // Explicitly blocked topics — high weight
   };
 
   let weightedSum = 0;

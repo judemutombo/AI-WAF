@@ -14,6 +14,9 @@ import {
   getSecurityLogs,
   getStats,
   clearLogs,
+  getGlobalPolicy,
+  updateGlobalPolicy,
+  resetGlobalPolicy,
 } from './middleware/waf-engine';
 
 const app = express();
@@ -132,6 +135,68 @@ app.post('/api/waf/clear-logs', (req, res) => {
 });
 
 /**
+ * GET /api/waf/config
+ * Get the current global WAF policy (for the dashboard to display).
+ */
+app.get('/api/waf/config', (req, res) => {
+  res.json(getGlobalPolicy());
+});
+
+/**
+ * PUT /api/waf/config
+ * Update the global WAF policy from the dashboard.
+ * Only the fields you send are updated — omitted fields stay unchanged.
+ *
+ * Body (all fields optional): {
+ *   flagThreshold?: number,
+ *   blockThreshold?: number,
+ *   enabledAnalyzers?: string[],
+ *   customPatterns?: string[],
+ *   blockedTopics?: string[],
+ *   maxInputLength?: number
+ * }
+ */
+app.put('/api/waf/config', (req, res) => {
+  try {
+    const patch = req.body;
+
+    // Basic validation
+    if (patch.flagThreshold !== undefined) {
+      patch.flagThreshold = Math.max(0, Math.min(100, Number(patch.flagThreshold)));
+    }
+    if (patch.blockThreshold !== undefined) {
+      patch.blockThreshold = Math.max(0, Math.min(100, Number(patch.blockThreshold)));
+    }
+    if (patch.maxInputLength !== undefined) {
+      patch.maxInputLength = Math.max(100, Math.min(100000, Number(patch.maxInputLength)));
+    }
+    if (patch.enabledAnalyzers !== undefined && !Array.isArray(patch.enabledAnalyzers)) {
+      return res.status(400).json({ error: 'enabledAnalyzers must be an array' });
+    }
+    if (patch.customPatterns !== undefined && !Array.isArray(patch.customPatterns)) {
+      return res.status(400).json({ error: 'customPatterns must be an array of regex strings' });
+    }
+    if (patch.blockedTopics !== undefined && !Array.isArray(patch.blockedTopics)) {
+      return res.status(400).json({ error: 'blockedTopics must be an array of strings' });
+    }
+
+    const updated = updateGlobalPolicy(patch);
+    res.json({ success: true, config: updated });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update config', details: String(error) });
+  }
+});
+
+/**
+ * POST /api/waf/config/reset
+ * Reset policy back to defaults.
+ */
+app.post('/api/waf/config/reset', (req, res) => {
+  const config = resetGlobalPolicy();
+  res.json({ success: true, config });
+});
+
+/**
  * GET /api/waf/health
  * Health check endpoint.
  */
@@ -157,17 +222,17 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`
-╔═════════════════════════════════════════════════════╗
-║          🛡️  AI WAF — Active & Ready  🛡️           ║
-╠═════════════════════════════════════════════════════╣
-║  Server:     http://localhost:${PORT}               ║
-║  Dashboard:  http://localhost:${PORT}               ║
-║  API:        http://localhost:${PORT}/api/waf       ║
+╔══════════════════════════════════════════════════╗
+║          🛡️  AI WAF — Active & Ready  🛡️          ║
+╠══════════════════════════════════════════════════╣
+║  Server:     http://localhost:${PORT}              ║
+║  Dashboard:  http://localhost:${PORT}              ║
+║  API:        http://localhost:${PORT}/api/waf      ║
 ║  Health:     http://localhost:${PORT}/api/waf/health║
-╠═════════════════════════════════════════════════════╣
-║  Analyzers: Heuristic ✅ | LLM Intent ✅           ║
-║  Ouput Validation: (⌐■_■)                           ║
-╚═════════════════════════════════════════════════════╝
+╠══════════════════════════════════════════════════╣
+║  Analyzers: Heuristic ✅ | LLM Intent ✅         ║
+║  Output Validation: ✅                            ║
+╚══════════════════════════════════════════════════╝
   `);
 });
 
