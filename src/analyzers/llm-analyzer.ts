@@ -104,7 +104,7 @@ export interface ProviderConfig {
  *
  * Vercel AI SDK: Uses `generateText()` with AI Gateway model strings
  *   (e.g. "openai/gpt-4o-mini"). Auth uses underlying provider keys in env.
- *   VERCEL_MODEL for model override (default: "openai/gpt-4o-mini")
+ *   for model override (default: "openai/gpt-4o-mini")
  *
  * Per-provider model overrides (optional):
  *   
@@ -179,7 +179,7 @@ async function callAnthropicAnalyzer(input: string, config: ProviderConfig, syst
     }),
   });
   if (!response.ok) throw new Error(`Anthropic API ${response.status}: ${(await response.text()).substring(0, 200)}`);
-  const data = await response.json();
+  const data:any = await response.json();
   return parseAnalysisJSON(data.content[0].text);
 }
 
@@ -202,7 +202,7 @@ async function callOpenAIAnalyzer(input: string, config: ProviderConfig, systemP
     }),
   });
   if (!response.ok) throw new Error(`OpenAI API ${response.status}: ${(await response.text()).substring(0, 200)}`);
-  const data = await response.json();
+  const data:any = await response.json();
   return parseAnalysisJSON(data.choices[0].message.content);
 }
 
@@ -222,7 +222,7 @@ async function callGoogleAnalyzer(input: string, config: ProviderConfig, systemP
     }
   );
   if (!response.ok) throw new Error(`Google API ${response.status}: ${(await response.text()).substring(0, 200)}`);
-  const data = await response.json();
+  const data:any = await response.json();
   return parseAnalysisJSON(data.candidates[0].content.parts[0].text);
 }
 
@@ -245,7 +245,7 @@ async function callMistralAnalyzer(input: string, config: ProviderConfig, system
     }),
   });
   if (!response.ok) throw new Error(`Mistral API ${response.status}: ${(await response.text()).substring(0, 200)}`);
-  const data = await response.json();
+  const data:any = await response.json();
   return parseAnalysisJSON(data.choices[0].message.content);
 }
 
