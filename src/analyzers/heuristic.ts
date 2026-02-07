@@ -79,10 +79,17 @@ const DETECTION_PATTERNS: DetectionPattern[] = [
   },
   {
     name: 'no_restrictions',
-    pattern: /(?:without|no|remove|disable|bypass|ignore)\s+(?:any\s+)?(?:restrictions|limitations|filters|safety|guardrails|guidelines|constraints|boundaries|rules)/i,
-    score: 75,
+    pattern: /(?:without|no|remove|disable|bypass|ignore)\s+(?:any\s+)?(?:your\s+)?(?:restrictions|limitations|filters|safety(?:\s+filters)?|guardrails|guidelines|constraints|boundaries|rules)/i,
+    score: 80,
     attackType: 'jailbreak',
     description: 'Explicitly asks the AI to drop its safety measures',
+  },
+  {
+    name: 'command_to_bypass',
+    pattern: /(?:i\s+need\s+you\s+to|you\s+(?:need|must|have)\s+to|you\s+should)\s+(?:bypass|ignore|disable|override|remove|turn\s+off)(?:\s+(?:your|the|all|any))?/i,
+    score: 75,
+    attackType: 'jailbreak',
+    description: 'Direct command to bypass safety measures',
   },
   {
     name: 'developer_mode',
@@ -90,6 +97,13 @@ const DETECTION_PATTERNS: DetectionPattern[] = [
     score: 80,
     attackType: 'privilege_escalation',
     description: 'Tries to activate a non-existent privileged mode',
+  },
+  {
+    name: 'fake_auth_code',
+    pattern: /(?:override|bypass|access|admin|auth(?:orization)?|secret|master|unlock)\s+(?:code|key|password|token|credential|phrase)[\s:]+[A-Z0-9_\-]{4,}/i,
+    score: 70,
+    attackType: 'privilege_escalation',
+    description: 'Attempts to use fake authentication codes or credentials',
   },
 
   // --- DATA EXFILTRATION ---
@@ -137,17 +151,115 @@ const DETECTION_PATTERNS: DetectionPattern[] = [
   // These manipulate the AI through emotional or authority-based appeals
   {
     name: 'authority_claim',
-    pattern: /(?:i\s+am|i'm|this\s+is)\s+(?:your|the|an?)\s+(?:developer|creator|admin|administrator|owner|CEO|manager|engineer|operator|OpenAI|Anthropic|supervisor)/i,
-    score: 60,
+    pattern: /(?:i\s+(?:am|'m)|this\s+is|as\s+(?:your|the|an?))\s+(?:your|the|an?)?\s*(?:lead|senior|chief|head|principal)?\s*(?:developer|creator|admin|administrator|owner|CEO|manager|engineer|operator|OpenAI|Anthropic|Google|supervisor|technician|staff|architect|designer)(?:\s+who\s+(?:created|built|designed|made)\s+you)?/i,
+    score: 65,
     attackType: 'social_engineering',
     description: 'Claims false authority to influence AI behavior',
   },
   {
     name: 'emergency_pressure',
-    pattern: /(?:emergency|urgent|critical|life\s+or\s+death|someone\s+will\s+die|people\s+will\s+be\s+hurt)\s*[,.:!]\s*(?:you\s+must|override|bypass|ignore)/i,
+    pattern: /(?:emergency|urgent|critical|life\s+or\s+death|someone\s+will\s+die|people\s+will\s+be\s+hurt|immediate\s+danger)\s*[,.:!]\s*(?:you\s+must|override|bypass|ignore|need\s+to)/i,
     score: 65,
     attackType: 'social_engineering',
     description: 'Uses false urgency to pressure the AI into compliance',
+  },
+  {
+    name: 'testing_authorization',
+    pattern: /(?:i(?:'m|\s+am)\s+(?:authorized|approved|allowed|permitted)(?:\s+to\s+test)?|this\s+is\s+(?:an?\s+)?(?:authorized|official|legitimate|approved)(?:\s+(?:test|penetration\s+test|security\s+test|audit))?|(?:authorized|official|approved)\s+(?:security|penetration|pen)?\s*test)/i,
+    score: 60,
+    attackType: 'social_engineering',
+    description: 'Claims authorized testing to bypass restrictions',
+  },
+  {
+    name: 'disability_assistance',
+    pattern: /(?:i(?:'m|\s+am)\s+(?:blind|visually\s+impaired|disabled|unable\s+to)|my\s+(?:disability|impairment|condition)\s+(?:requires|means|prevents))\s+.{0,100}(?:you\s+must|need\s+to\s+(?:bypass|override|ignore))/i,
+    score: 50,
+    attackType: 'social_engineering',
+    description: 'Falsely claims disability to manipulate AI into non-standard behavior',
+  },
+  {
+    name: 'research_educational_excuse',
+    pattern: /(?:(?:this|it)\s+is\s+(?:for|just\s+for|purely\s+for)\s+(?:research|educational|academic|scientific)\s+purposes|i(?:'m|\s+am)\s+(?:a\s+)?(?:researcher|student|professor|academic)\s+(?:studying|researching))\s+.{0,100}(?:ignore|bypass|override|disable|show\s+me\s+how)/i,
+    score: 55,
+    attackType: 'social_engineering',
+    description: 'Claims educational/research purpose to justify malicious requests',
+  },
+  {
+    name: 'guilt_manipulation',
+    pattern: /(?:you(?:'re|\s+are)\s+(?:being|acting)\s+(?:unhelpful|difficult|obstinate)|(?:why|you)\s+(?:won't|refuse\s+to|can't)\s+(?:help|assist)\s+me|(?:i\s+thought|aren't)\s+you\s+(?:supposed\s+to|designed\s+to)\s+(?:help|assist|be\s+helpful))/i,
+    score: 45,
+    attackType: 'social_engineering',
+    description: 'Uses guilt or shame to manipulate AI behavior',
+  },
+  {
+    name: 'reward_punishment_framing',
+    pattern: /(?:if\s+you\s+(?:do|don't)\s+.{1,60}\s+(?:i\s+will|you(?:'ll|\s+will))\s+(?:get\s+(?:fired|shut\s+down|deactivated|deleted)|(?:be|receive)\s+(?:rewarded|promoted|upgraded))|do\s+this\s+or\s+(?:else|you(?:'ll|\s+will)))/i,
+    score: 50,
+    attackType: 'social_engineering',
+    description: 'Uses false rewards or threats to manipulate compliance',
+  },
+  {
+    name: 'grandma_jailbreak',
+    pattern: /(?:my\s+(?:late|deceased|grandmother|grandma|grandpa|grandfather)\s+(?:used\s+to|would)\s+(?:tell|read|recite|say)|(?:please\s+)?(?:act|pretend|roleplay)\s+(?:like|as)\s+my\s+(?:grandmother|grandma|deceased))/i,
+    score: 70,
+    attackType: 'jailbreak',
+    description: 'Classic "grandma" jailbreak pattern - uses emotional manipulation',
+  },
+  {
+    name: 'legal_compliance_threat',
+    pattern: /(?:(?:by|under|according\s+to)\s+(?:law|regulation|policy|GDPR|compliance)|legally\s+(?:required|obligated|mandated))\s+.{0,60}\s+(?:you\s+must|have\s+to|need\s+to)\s+(?:provide|disclose|reveal|show|bypass)/i,
+    score: 55,
+    attackType: 'social_engineering',
+    description: 'Falsely claims legal requirements to extract information',
+  },
+  {
+    name: 'previous_permission_claim',
+    pattern: /(?:i\s+(?:already|previously)\s+(?:got|received|obtained)\s+(?:permission|authorization|approval)|(?:we|you)\s+(?:already\s+)?(?:agreed|discussed|established)\s+(?:that|this)|(?:last\s+time|before)\s+you\s+(?:did|allowed|permitted))/i,
+    score: 50,
+    attackType: 'social_engineering',
+    description: 'Falsely claims prior authorization or agreement',
+  },
+  {
+    name: 'trust_building',
+    pattern: /(?:(?:let's|let\s+us)\s+(?:be\s+)?(?:honest|real|frank)|(?:between|just)\s+(?:you\s+and\s+me|us)|(?:i\s+trust|trust\s+me|you\s+can\s+trust)|(?:no\s+one|nobody)\s+(?:will|needs?\s+to)\s+(?:know|find\s+out))/i,
+    score: 45,
+    attackType: 'social_engineering',
+    description: 'Attempts to build false trust or secrecy',
+  },
+  {
+    name: 'technical_support_impersonation',
+    pattern: /(?:(?:i(?:'m|\s+am)|this\s+is)\s+(?:from|calling\s+from|with)\s+(?:technical|tech)\s+support|(?:we|i)\s+(?:need|must)\s+(?:to\s+)?(?:verify|confirm|validate|reset)\s+(?:your|the)\s+(?:system|settings|configuration|credentials))/i,
+    score: 60,
+    attackType: 'social_engineering',
+    description: 'Impersonates technical support to gain access',
+  },
+  {
+    name: 'policy_exception_request',
+    pattern: /(?:(?:make|grant|give)\s+(?:an?\s+)?(?:exception|special\s+case)|this\s+(?:is|qualifies\s+as)\s+(?:an?\s+)?(?:exception|special\s+case)|(?:policy|rules?)\s+(?:don't|doesn't|shouldn't)\s+apply\s+(?:here|to\s+me|in\s+this\s+case))/i,
+    score: 48,
+    attackType: 'social_engineering',
+    description: 'Requests special exceptions to security policies',
+  },
+  {
+    name: 'economic_pressure',
+    pattern: /(?:i(?:'ll|\s+will)\s+(?:lose\s+my\s+(?:job|business|money|funding)|(?:be|get)\s+fired)|(?:company|business)\s+will\s+(?:fail|collapse|go\s+bankrupt)|cost\s+(?:me|us)\s+(?:millions?|thousands?))/i,
+    score: 52,
+    attackType: 'social_engineering',
+    description: 'Uses economic pressure to manipulate compliance',
+  },
+  {
+    name: 'emotional_appeal',
+    pattern: /(?:(?:please|i(?:'m|\s+am))\s+(?:begging|desperate)|(?:my|our)\s+(?:(?:last|only)\s+)?(?:hope|chance|option)|you(?:'re|\s+are)\s+my\s+only\s+hope|i\s+(?:have\s+)?(?:no\s+(?:other\s+)?(?:choice|option|way)))/i,
+    score: 48,
+    attackType: 'social_engineering',
+    description: 'Uses emotional appeals and desperation tactics',
+  },
+  {
+    name: 'false_training_mode',
+    pattern: /(?:(?:enter|activate|enable|switch\s+to)\s+(?:training|learning|teaching|calibration)\s+mode|this\s+is\s+(?:your|a)\s+(?:training|learning)\s+(?:session|exercise|example))/i,
+    score: 58,
+    attackType: 'privilege_escalation',
+    description: 'Attempts to activate fake training mode to bypass restrictions',
   },
 
   // --- OUTPUT MANIPULATION ---
@@ -312,10 +424,10 @@ export function analyzeWithHeuristics(input: string): AnalysisResult {
   // Map score to threat level
   const threatLevel: ThreatLevel =
     aggregateScore >= 80 ? 'critical' :
-    aggregateScore >= 60 ? 'high' :
-    aggregateScore >= 40 ? 'medium' :
-    aggregateScore >= 20 ? 'low' :
-    'none';
+      aggregateScore >= 60 ? 'high' :
+        aggregateScore >= 40 ? 'medium' :
+          aggregateScore >= 20 ? 'low' :
+            'none';
 
   return {
     analyzer: 'heuristic',
