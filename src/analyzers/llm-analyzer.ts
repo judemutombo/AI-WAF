@@ -208,22 +208,17 @@ async function callOpenAIAnalyzer(input: string, config: ProviderConfig, systemP
 
 async function callGoogleAnalyzer(input: string, config: ProviderConfig, systemPrompt?: string): Promise<LLMAnalysis> {
   if (!config.apiKey) throw new Error('GOOGLE_API_KEY not set');
-  const model = config.model || 'gemini-1.5-flash';
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: ANALYZER_SYSTEM_PROMPT }] },
-        contents: [{ parts: [{ text: buildAnalysisPrompt(input, systemPrompt) }] }],
-        generationConfig: { maxOutputTokens: 512, temperature: 0 },
-      }),
-    }
-  );
-  if (!response.ok) throw new Error(`Google API ${response.status}: ${(await response.text()).substring(0, 200)}`);
-  const data = await response.json();
-  return parseAnalysisJSON(data.candidates[0].content.parts[0].text);
+  const { GoogleGenerativeAI } = await import('@google/generative-ai');
+
+  const client = new GoogleGenerativeAI(config.apiKey);
+  const model = client.getGenerativeModel({
+    model: config.model || 'gemini-2.5-flash',
+    systemInstruction: ANALYZER_SYSTEM_PROMPT,
+  });
+
+  const result = await model.generateContent(buildAnalysisPrompt(input, systemPrompt));
+  const text = result.response.text();
+  return parseAnalysisJSON(text);
 }
 
 async function callMistralAnalyzer(input: string, config: ProviderConfig, systemPrompt?: string): Promise<LLMAnalysis> {
@@ -392,7 +387,7 @@ function councilDecision(
 
   const threatLevel: ThreatLevel =
     finalScore >= 80 ? 'critical' : finalScore >= 60 ? 'high' :
-    finalScore >= 40 ? 'medium' : finalScore >= 20 ? 'low' : 'none';
+      finalScore >= 40 ? 'medium' : finalScore >= 20 ? 'low' : 'none';
 
   const providerSummaries = successful.map(r =>
     `${r.provider}: score=${r.analysis!.score}`
@@ -400,7 +395,7 @@ function councilDecision(
 
   const agreementNote = allAgreeBlock ? 'Unanimous: malicious'
     : votes.allow === successful.length ? 'Unanimous: safe'
-    : `Split (${votes.block}B/${votes.flag}F/${votes.allow}A)`;
+      : `Split (${votes.block}B/${votes.flag}F/${votes.allow}A)`;
 
   const avgConfidence = Math.round(
     successful.reduce((sum, r) => sum + (r.analysis!.confidence || 50), 0) / successful.length
