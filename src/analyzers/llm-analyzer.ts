@@ -286,7 +286,6 @@ async function callVercelAnalyzer(input: string, config: ProviderConfig, systemP
     model,
     system: ANALYZER_SYSTEM_PROMPT,
     prompt: buildAnalysisPrompt(input, systemPrompt),
-    maxTokens: 512,
     temperature: 0,
   });
 
