@@ -1,0 +1,25 @@
+{
+  "name": "ai-waf",
+  "version": "1.0.0",
+  "description": "AI-powered Web Application Firewall for LLM applications",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "uuid": "^9.0.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.490.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/uuid": "^9.0.7"
+  }
+}
