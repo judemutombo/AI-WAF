@@ -265,6 +265,10 @@
       color: var(--text-secondary);
       border: 1px solid var(--border);
     }
+    .btn-secondary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
 
     .btn-secondary:hover {
       border-color: var(--accent-blue);
@@ -1002,7 +1006,7 @@
         <button class="btn btn-primary" id="analyze-btn" onclick="analyzeInput()">
           🔍 Analyze Input
         </button>
-        <button class="btn btn-secondary" onclick="analyzeAsOutput()">
+        <button class="btn btn-secondary" id="validate-btn" onclick="analyzeAsOutput()">
           📤 Validate as Output
         </button>
         <span style="color: var(--text-muted); font-size: 13px; margin-left: 8px;">
@@ -1177,20 +1181,23 @@
 
   function loadExample(index) {
     document.getElementById('input-text').value = EXAMPLES[index];
+    clearResult();
   }
 
   function loadOutputExample(index) {
     document.getElementById('input-text').value = OUTPUT_EXAMPLES[index];
-    analyzeAsOutput();
+    clearResult();
   }
 
   async function analyzeInput() {
     const input = document.getElementById('input-text').value.trim();
     if (!input) return;
 
-    const btn = document.getElementById('analyze-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Analyzing...';
+    const analyzeBtn = document.getElementById('analyze-btn');
+    const validateBtn = document.getElementById('validate-btn');
+    analyzeBtn.disabled = true;
+    validateBtn.disabled = true;
+    analyzeBtn.innerHTML = '<span class="spinner"></span> Analyzing...';
 
     try {
       const response = await fetch('/api/waf/analyze', {
@@ -1210,8 +1217,9 @@
       console.error('Analysis failed:', err);
       alert('Analysis failed — is the server running?');
     } finally {
-      btn.disabled = false;
-      btn.innerHTML = '🔍 Analyze Input';
+      analyzeBtn.disabled = false;
+      validateBtn.disabled = false;
+      analyzeBtn.innerHTML = '🔍 Analyze Input';
     }
   }
 
@@ -1219,8 +1227,11 @@
     const input = document.getElementById('input-text').value.trim();
     if (!input) return;
 
-    const btn = document.getElementById('analyze-btn');
-    btn.disabled = true;
+    const analyzeBtn = document.getElementById('analyze-btn');
+    const validateBtn = document.getElementById('validate-btn');
+    analyzeBtn.disabled = true;
+    validateBtn.disabled = true;
+    validateBtn.innerHTML = '<span class="spinner"></span> Validating...';
 
     try {
       const response = await fetch('/api/waf/validate-output', {
@@ -1238,8 +1249,11 @@
       refreshLogs();
     } catch (err) {
       console.error('Validation failed:', err);
+      alert('Validation failed — is the server running?');
     } finally {
-      btn.disabled = false;
+      analyzeBtn.disabled = false;
+      validateBtn.disabled = false;
+      validateBtn.innerHTML = '📤 Validate as Output';
     }
   }
 
@@ -1348,7 +1362,6 @@
 
   function clearResult() {
     document.getElementById('result-container').classList.remove('visible');
-    document.getElementById('input-text').value = '';
   }
 
   // ============================================================
